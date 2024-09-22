@@ -14,10 +14,6 @@ interface NoteDao {
     @Query("SELECT * FROM note ORDER BY createdDate DESC")
     fun getPagingNote () : PagingSource<Int, Note>
 
-    @Query("SELECT * FROM note ORDER BY createdDate DESC")
-    suspend fun getAllNote(): List<Note>
-
-
     @Query("SELECT * FROM note WHERE id = :noteId LIMIT 1")
     suspend fun getNote(noteId: Long): Note?
 
