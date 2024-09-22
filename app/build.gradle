@@ -63,6 +63,15 @@ dependencies {
     implementation "androidx.room:room-runtime:2.6.1"
     kapt "androidx.room:room-compiler:2.6.1"
     implementation "androidx.room:room-ktx:2.6.1"
+    implementation "androidx.room:room-paging:2.5.0" // Room + Paging integration
+
+
+    //pading
+    // Paging Runtime (for XML Android)
+    implementation "androidx.paging:paging-runtime:3.1.0"
+
+    // For Kotlin Coroutines support in Paging (if you're using coroutines)
+    implementation "androidx.paging:paging-common-ktx:3.1.0"
 
     //test
     testImplementation 'androidx.arch.core:core-testing:2.2.0'

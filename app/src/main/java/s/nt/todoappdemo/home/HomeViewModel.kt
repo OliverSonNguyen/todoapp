@@ -3,99 +3,71 @@ package s.nt.todoappdemo.home
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import s.nt.todoappdemo.home.data.NoteRepository
 import s.nt.todoappdemo.home.data.local.Note
+import java.util.Calendar
+import java.util.Date
 
 const val PAGING = 20
 
 class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
     private val _uiState = MutableStateFlow<UiState>(UiState.UiStateLoading)
     val uiState = _uiState.asStateFlow()
-    private val _refresh = MutableSharedFlow<Unit>()
-    private val _originalData = MutableStateFlow<MutableList<Note>>(mutableListOf())
-
-    //paging manually, lazy load
-    private var offset = 0
 
     init {
         viewModelScope.launch {
-            try {
-                _refresh.flatMapLatest {
-                    Log.d("", ">>>start1 ${Thread.currentThread()}")
-                    val items = noteRepository.getAllNotes()
-                    _originalData.value = items.toMutableList()
-                    if (items.isNotEmpty()) {
-                        if (offset + PAGING < items.size) {
-                            offset += PAGING
-                        } else {
-                            offset = items.size
-                        }
-                    }
-                    Log.d("", ">>>start2 ${Thread.currentThread()}")
-                    val uiState = UiState.UiStateLoaded(items = _originalData.value.take(offset))
-                    _uiState.value = uiState
-                    flow {
-                        emit(uiState)
-                    }
-
-                }
-                    .flowOn(Dispatchers.IO)
-
-                    .collect { newState: UiState.UiStateLoaded ->
-                        _uiState.value = newState
-                    }
-
-            } catch (e: Exception) {
-                val uiState = UiState.UiStateError(e.message)
+            Pager(
+                PagingConfig(pageSize = PAGING)
+            ) {
+                noteRepository.getPagedNotes()
+            }.flow.cachedIn(viewModelScope).collectLatest {
+                val uiState = UiState.UiStateReady(pagingData = it)
                 _uiState.value = uiState
-            }
-
-
-        }
-        viewModelScope.launch {
-            _refresh.emit(Unit)
-        }
-    }
-
-    fun loadMore() {
-        viewModelScope.launch {
-            try {
-                if (offset >= _originalData.value.size) {
-                    return@launch
-                }
-                _uiState.value = UiState.UiStateLoading
-
-                if (offset + PAGING < _originalData.value.size) {
-                    offset += PAGING
-                } else {
-                    offset = _originalData.value.size
-                }
-                val uiState = UiState.UiStateLoaded(items = _originalData.value.take(offset))
-                _uiState.value = uiState
-            } catch (e: Exception) {
-                val uiState = UiState.UiStateError(e.message)
-                _uiState.value = uiState
+                Log.d("Paging", ">>> New PagingData collected")
             }
         }
+
     }
 
-    fun refresh() {
-        viewModelScope.launch {
-            _refresh.emit(Unit)
+    fun insert2000Items() = viewModelScope.launch {
+        noteRepository.deleteAll()
+        val currentTime = Calendar.getInstance().timeInMillis
+        for (i in 1..2000) {
+            val createdDate = Date(currentTime - 60 * i * 1000L)
+            val updatedDate = Date(currentTime - 60 * i * 900L)
+            val note = Note(
+                title = "Note $i",
+                content = "This is content for note item $i",
+                createdDate = createdDate,
+                updatedDate = updatedDate
+            )
+            noteRepository.insert(note)
         }
     }
 
-    sealed class UiState {
-        data object UiStateLoading : UiState()
-        data class UiStateLoaded(val items: List<Note> = emptyList()) : UiState()
-        data class UiStateError(val message: String? = null) : UiState()
+    fun deleteAllItems() {
+        viewModelScope.launch {
+            noteRepository.deleteAll()
+        }
+    }
+
+    fun deleteNote(note: Note) {
+        viewModelScope.launch {
+            noteRepository.delete(note)
+        }
+    }
+
+    sealed interface UiState {
+        data object UiStateLoading : UiState
+        data class UiStateReady(val pagingData: PagingData<Note>) : UiState
+        data class UiStateError(val message: String? = null) : UiState
     }
 }

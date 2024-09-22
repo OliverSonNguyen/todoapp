@@ -2,8 +2,8 @@ package s.nt.todoappdemo.home.view.adapter
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import s.nt.todoappdemo.databinding.RowHomeBinding
 import s.nt.todoappdemo.home.data.local.Note
@@ -20,31 +20,41 @@ class NoteDiff : DiffUtil.ItemCallback<Note>() {
     }
 }
 
-class HomeAdapter(private val itemClickCallback: ((Note) -> Unit)?) :
-    ListAdapter<Note, HomeAdapter.HomeViewHolder>(NoteDiff()) {
-    private val dateFormat: SimpleDateFormat =
-        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+class HomePagingAdapter(private val itemClickCallback: ((Note) -> Unit)?, val noteRemove: ((Note) -> Unit)? = null) :
+    PagingDataAdapter<Note, HomePagingAdapter.HomePagingViewHolder>(NoteDiff()) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HomeViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HomePagingViewHolder {
         val binding = RowHomeBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return HomeViewHolder(binding, dateFormat)
+        return HomePagingViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: HomeViewHolder, position: Int) {
-        holder.bind(getItem(position), itemClickCallback)
+    override fun onBindViewHolder(holder: HomePagingViewHolder, position: Int) {
+        val note = getItem(position)
+        note?.let {
+            holder.bind(it, itemClickCallback, noteRemove)
+        }
     }
 
-    class HomeViewHolder(
-        private val binding: RowHomeBinding,
-        private val dateFormat: SimpleDateFormat
-    ) :
-        RecyclerView.ViewHolder(binding.root) {
-        fun bind(item: Note, itemClickCallback: ((Note) -> Unit)?) {
+    class HomePagingViewHolder(
+        private val binding: RowHomeBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(
+            item: Note, itemClickCallback: ((Note) -> Unit)?,
+            noteRemove: ((Note) -> Unit)? = null
+        ) {
             binding.rowTitle.text = item.title
             binding.rowContent.text = item.content
-            binding.rowUpdatedDate.text = dateFormat.format(item.updatedDate)
+            binding.rowUpdatedDate.text = SimpleDateFormat(
+                "yyyy-MM-dd HH:mm",
+                Locale.getDefault()
+            ).format(item.createdDate)
+
             binding.root.setOnClickListener {
                 itemClickCallback?.invoke(item)
+            }
+            binding.removeNote.setOnClickListener {
+                noteRemove?.invoke(item)
             }
         }
     }

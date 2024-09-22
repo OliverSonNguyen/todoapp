@@ -1,9 +1,11 @@
 <resources>
-    <string name="app_name">TodoAppDemo</string>
+    <string name="app_name">Todo SonNt</string>
     <string name="title">Title</string>
     <string name="note">Note</string>
     <string name="add_note">Add Note</string>
     <string name="edit">Edit</string>
+    <string name="install">Add 2000</string>
+    <string name="clean">Clean Data</string>
     <string name="delete">Delete</string>
     <string name="editting">Editting...</string>
     <string name="saved">Saved</string>
