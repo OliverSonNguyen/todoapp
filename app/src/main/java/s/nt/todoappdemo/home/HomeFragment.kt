@@ -1,11 +1,15 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package s.nt.todoappdemo.home
 
+import android.app.AlertDialog
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.Toast
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -15,13 +19,20 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.paging.LoadState
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import s.nt.todoappdemo.R
+import s.nt.todoappdemo.databinding.DialogInputBinding
 import s.nt.todoappdemo.databinding.FragmentHomeBinding
 import s.nt.todoappdemo.home.data.NoteRepository
 import s.nt.todoappdemo.home.data.NoteRepositoryImpl
 import s.nt.todoappdemo.home.data.local.AppDatabase
 import s.nt.todoappdemo.home.data.local.Note
+import s.nt.todoappdemo.home.view.adapter.HomeAdapter
 import s.nt.todoappdemo.home.view.adapter.HomePagingAdapter
 import s.nt.todoappdemo.nodedetails.NoteDetailFragment
 
@@ -34,6 +45,7 @@ class HomeFragment : Fragment() {
         HomeViewModelFactory(requireContext())
     }
     private lateinit var adapterPaging: HomePagingAdapter
+    private lateinit var adapter: HomeAdapter
 
 
     override fun onCreateView(
@@ -75,7 +87,16 @@ class HomeFragment : Fragment() {
 
     private fun initView() {
         binding.btnAdd.setOnClickListener {
-            navigateToNoteDetailFragment()
+//            navigateToNoteDetailFragment()
+
+            showInputDialog { title, description ->
+                viewModel.addTodo(title, description)
+                CoroutineScope(Dispatchers.Main).launch {
+                    delay(300) // Delay for 300ms
+                    binding.homeRcv.smoothScrollToPosition(0) // Smooth scroll after the delay
+                }
+            }
+
         }
 
         adapterPaging = HomePagingAdapter(noteRemove = {
@@ -84,27 +105,51 @@ class HomeFragment : Fragment() {
         }, itemClickCallback = {
             navigateToNoteDetailFragment(it)
         })
+
+        adapter = HomeAdapter(noteRemove = {
+            Toast.makeText(requireContext(), "Deleted" + it.title, Toast.LENGTH_SHORT).show()
+            viewModel.deleteNote(it)
+        }, itemClickCallback = {
+            navigateToNoteDetailFragment(it)
+        })
+
         binding.homeRcv.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.VERTICAL, false)
-        binding.homeRcv.adapter = adapterPaging
-        adapterPaging.addLoadStateListener { loadState ->
-            when (loadState.append) {
-                is LoadState.Loading -> {
-                    // Log when a new page is being loaded
-                    Log.d("Paging", ">>> Loading next page...")
-                }
+//        binding.homeRcv.adapter = adapterPaging
+        binding.homeRcv.adapter = adapter
 
-                is LoadState.NotLoading -> {
-                    // Log when loading is finished
-                    Log.d("Paging", ">>> Finished loading the current page.")
-                }
+        binding.homeRcv.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+                val layoutManager = recyclerView.layoutManager as LinearLayoutManager
+                val visibleItemCount = layoutManager.childCount
+                val totalItemCount = layoutManager.itemCount
+                val pastVisibleItems = layoutManager.findFirstVisibleItemPosition()
 
-                is LoadState.Error -> {
-                    // Log the error
-                    val error = loadState.append as LoadState.Error
-                    Log.e("Paging", ">>> Error loading page: ${error.error.message}")
+                if ((visibleItemCount + pastVisibleItems) >= totalItemCount) {
+                    viewModel.loadMore()
                 }
             }
-        }
+        })
+
+//        adapterPaging.addLoadStateListener { loadState ->
+//            when (loadState.append) {
+//                is LoadState.Loading -> {
+//                    // Log when a new page is being loaded
+//                    Log.d("Paging", ">>> Loading next page...")
+//                }
+//
+//                is LoadState.NotLoading -> {
+//                    // Log when loading is finished
+//                    Log.d("Paging", ">>> Finished loading the current page.")
+//                }
+//
+//                is LoadState.Error -> {
+//                    // Log the error
+//                    val error = loadState.append as LoadState.Error
+//                    Log.e("Paging", ">>> Error loading page: ${error.error.message}")
+//                }
+//            }
+//        }
     }
 
     private fun observeData() {
@@ -122,7 +167,8 @@ class HomeFragment : Fragment() {
 
                     is HomeViewModel.UiState.UiStateReady -> {
                         binding.loadingIndicator.isVisible = false
-                        adapterPaging.submitData(uiState.pagingData)
+//                        adapterPaging.submitData(uiState.pagingData)
+                        adapter.submitList(uiState.todoList)
 
                     }
                 }
@@ -133,6 +179,27 @@ class HomeFragment : Fragment() {
     private fun navigateToNoteDetailFragment(note: Note? = null) {
         val fragment = if (note != null) NoteDetailFragment.newInstance(note.id) else NoteDetailFragment()
         parentFragmentManager.beginTransaction().replace(R.id.homeContainer, fragment).addToBackStack(null).commit()
+    }
+
+    private fun showInputDialog(onInputProvided: (title: String, description: String) -> Unit) {
+        // Use view binding for the dialog layout
+        val dialogBinding = DialogInputBinding.inflate(LayoutInflater.from(requireContext()))
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle("Create a new Todo")
+            .setView(dialogBinding.root)
+            .setPositiveButton("OK") { dialogInterface, _ ->
+                val title = dialogBinding.editTextTitle.text.toString().trim()
+                val description = dialogBinding.editTextDescription.text.toString().trim()
+                onInputProvided(title, description)
+                dialogInterface.dismiss()
+            }
+            .setNegativeButton("Cancel") { dialogInterface, _ ->
+                dialogInterface.dismiss()
+            }
+            .create()
+
+        dialog.show()
     }
 
 }
