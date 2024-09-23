@@ -10,4 +10,7 @@
     <string name="editting">Editting...</string>
     <string name="saved">Saved</string>
     <string name="deleted">Deleted</string>
+    <string name="create_a_new_todo">Create a new Todo</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
 </resources>

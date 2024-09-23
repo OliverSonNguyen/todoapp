@@ -2,7 +2,6 @@ package s.nt.todoappdemo.home.view.adapter
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -21,11 +20,10 @@ class NoteDiff : DiffUtil.ItemCallback<Note>() {
     }
 }
 
-class HomeAdapter(private val itemClickCallback: ((Note) -> Unit)?,
-                  private val noteRemove: ((Note) -> Unit)? = null) :
-    ListAdapter<Note, HomeAdapter.HomeViewHolder>(NoteDiff()) {
-    private val dateFormat: SimpleDateFormat =
-        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+class HomeAdapter(
+    private val itemClickCallback: ((Note) -> Unit)?, private val noteRemove: ((Note) -> Unit)? = null
+) : ListAdapter<Note, HomeAdapter.HomeViewHolder>(NoteDiff()) {
+    private val dateFormat: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HomeViewHolder {
         val binding = RowHomeBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -37,55 +35,14 @@ class HomeAdapter(private val itemClickCallback: ((Note) -> Unit)?,
     }
 
     class HomeViewHolder(
-        private val binding: RowHomeBinding,
-        private val dateFormat: SimpleDateFormat
-    ) :
-        RecyclerView.ViewHolder(binding.root) {
-        fun bind(item: Note, itemClickCallback: ((Note) -> Unit)?,
-                 noteRemove: ((Note) -> Unit)? = null) {
-            binding.rowTitle.text = item.title
-            binding.rowContent.text = item.content
-            binding.rowUpdatedDate.text = dateFormat.format(item.updatedDate)
-            binding.root.setOnClickListener {
-                itemClickCallback?.invoke(item)
-            }
-            binding.removeNote.setOnClickListener {
-                noteRemove?.invoke(item)
-            }
-        }
-    }
-}
-
-class HomePagingAdapter(private val itemClickCallback: ((Note) -> Unit)?, val noteRemove: ((Note) -> Unit)? = null) :
-    PagingDataAdapter<Note, HomePagingAdapter.HomePagingViewHolder>(NoteDiff()) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HomePagingViewHolder {
-        val binding = RowHomeBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return HomePagingViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: HomePagingViewHolder, position: Int) {
-        val note = getItem(position)
-        note?.let {
-            holder.bind(it, itemClickCallback, noteRemove)
-        }
-    }
-
-    class HomePagingViewHolder(
-        private val binding: RowHomeBinding
+        private val binding: RowHomeBinding, private val dateFormat: SimpleDateFormat
     ) : RecyclerView.ViewHolder(binding.root) {
-
         fun bind(
-            item: Note, itemClickCallback: ((Note) -> Unit)?,
-            noteRemove: ((Note) -> Unit)? = null
+            item: Note, itemClickCallback: ((Note) -> Unit)?, noteRemove: ((Note) -> Unit)? = null
         ) {
             binding.rowTitle.text = item.title
             binding.rowContent.text = item.content
-            binding.rowUpdatedDate.text = SimpleDateFormat(
-                "yyyy-MM-dd HH:mm",
-                Locale.getDefault()
-            ).format(item.createdDate)
-
+            binding.rowUpdatedDate.text = dateFormat.format(item.updatedDate)
             binding.root.setOnClickListener {
                 itemClickCallback?.invoke(item)
             }

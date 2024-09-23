@@ -1,11 +1,10 @@
 package s.nt.todoappdemo.home
 
-import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +23,9 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
     private val _uiState = MutableStateFlow<UiState>(UiState.UiStateLoading)
     val uiState = _uiState.asStateFlow()
     private val _loadMore = MutableSharedFlow<Unit>()
-    private val _originalData = mutableListOf<Note>()
+
+    @VisibleForTesting
+    val _originalData = mutableListOf<Note>()
 
     private var offset = 0
     private var isLoadMore = false
@@ -33,33 +34,31 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 _loadMore.flatMapLatest {
-                    Log.d("",">>>_loadMore trigger isLoadMore :$isLoadMore")
                     _uiState.value = UiState.UiStateLoading
                     val appendedList = noteRepository.getListDataOffset(offset = offset)
-                    flow {
-                        emit(appendedList)
+                    if (isLoadMore) {
+                        _originalData.addAll(appendedList)
+                    } else {
+                        _originalData.clear()
+                        _originalData.addAll(appendedList)
                     }
-//                    appendedList
-                }.flowOn(Dispatchers.IO)
-                    .collect { appendedList ->
-                        Log.d("",">>>_loadMore collect isLoadMore :$isLoadMore  appendedList:${appendedList.size}")
-                        if (isLoadMore) {
-                            _originalData.addAll(appendedList)
-                        } else {
-                            _originalData.clear()
-                            _originalData.addAll(appendedList)
-                        }
-                        val uiState = UiState.UiStateReady(todoList = _originalData.toList())
-                        _uiState.value = uiState
-                        if (isLoadMore) {
+                    val uiState = UiState.UiStateReady(todoList = _originalData.toList())
+                    _uiState.value = uiState
+                    if (isLoadMore) {
 
-                            offset += appendedList.size
-                            isLoadMore = false
-                        }
+                        offset += appendedList.size
+                        isLoadMore = false
+                    }
+
+                    flow {
+                        emit(uiState)
+                    }
+                }.flowOn(Dispatchers.IO)
+                    .collect { uiState ->
+                        _uiState.value = uiState
                     }
 
             } catch (e: Exception) {
-                Log.e("", ">>>err $e")
                 _uiState.value = UiState.UiStateError(message = e.message)
                 isLoadMore = false
             }
@@ -83,9 +82,6 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
 
     fun insert2000Items() {
         viewModelScope.launch {
-            Log.d("",">>>start insert")
-//            noteRepository.deleteAll()
-
             noteRepository.deleteAll()
             _originalData.clear()
             val uiState = UiState.UiStateReady(todoList = _originalData.toList())
@@ -105,9 +101,7 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
                 )
                 list.add(note)
             }
-            Log.d("",">>> generate 2000 complete")
             noteRepository.insertList(list)
-            Log.d("",">>> insert 2000 complete")
             isLoadMore = true
             _loadMore.emit(Unit)
         }

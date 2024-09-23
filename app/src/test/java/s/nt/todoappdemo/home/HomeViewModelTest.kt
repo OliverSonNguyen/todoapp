@@ -3,24 +3,19 @@
 package s.nt.todoappdemo.home
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import androidx.paging.PagingData
 import com.google.common.truth.Truth
 import io.mockk.MockKAnnotations
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -43,18 +38,7 @@ class HomeViewModelTest {
     fun setUp() {
         MockKAnnotations.init(this)
         Dispatchers.setMain(testDispatcher)
-        val mockNote = Note(
-            title = "Note 1",
-            content = "This is content for note 1",
-            createdDate = Date(),
-            updatedDate = Date()
-        )
-        val mockPagingData = PagingData.from(listOf(mockNote))
-        every { noteRepository.getFlowPagedNotes() } coAnswers {
-            delay(100)
-            flowOf(mockPagingData)
-        }
-
+        coEvery { noteRepository.getListDataOffset(20, 0) } returns emptyList()
         viewModel = HomeViewModel(noteRepository)
     }
 
@@ -63,28 +47,9 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
-    @Test
-    fun `uiState is set to UiStateReady when paged data is collected`() = runTest {
-        // given
-
-        val mockNote = Note(
-            title = "Note 1",
-            content = "This is content for note 1",
-            createdDate = Date(),
-            updatedDate = Date()
-        )
-        val mockPagingData = PagingData.from(listOf(mockNote))
-        every { noteRepository.getFlowPagedNotes() } returns flowOf(mockPagingData)
-
-        viewModel = HomeViewModel(noteRepository)
-
-        Truth.assertThat(viewModel.uiState.value).isInstanceOf(HomeViewModel.UiState.UiStateReady::class.java)
-
-        coVerify { noteRepository.getFlowPagedNotes() }
-    }
 
     @Test
-    fun `deleteAllItems calls repository to delete all notes`() = runTest {
+    fun `deleteAllItems calls repository to delete all notes and updates uiState`() = runTest {
         // given
         coEvery { noteRepository.deleteAll() } just Runs
 
@@ -93,24 +58,124 @@ class HomeViewModelTest {
 
         // then
         coVerify { noteRepository.deleteAll() }
+        Truth.assertThat(viewModel.uiState.value as HomeViewModel.UiState.UiStateReady)
+            .isEqualTo(HomeViewModel.UiState.UiStateReady(todoList = mutableListOf()))
+
     }
 
     @Test
-    fun `deleteNote calls repository to delete note`() = runTest {
+    fun `deleteNote calls repository to delete note and removes from uiState`() = runTest {
         // given
-        val mockNote = Note(
+        val note1 = Note(
+            id = 1L,
             title = "Note 1",
             content = "This is content for note 1",
             createdDate = Date(),
             updatedDate = Date()
         )
-        coEvery { noteRepository.delete(mockNote) } just Runs
+        val note2 = Note(
+            id = 2L,
+            title = "Note 2",
+            content = "This is content for note 2",
+            createdDate = Date(),
+            updatedDate = Date()
+        )
+
+        viewModel._originalData.clear()
+        viewModel._originalData.add(note1)
+        viewModel._originalData.add(note2)
+
+        coEvery { noteRepository.deleteById(note1.id) } returns 1
 
         // when
-        viewModel.deleteNote(mockNote)
+        viewModel.deleteNote(note1)
 
-        // Then
-        coVerify { noteRepository.delete(mockNote) }
+        // then
+        coVerify { noteRepository.deleteById(note1.id) }
+
+        Truth.assertThat(viewModel.uiState.value as HomeViewModel.UiState.UiStateReady)
+            .isEqualTo(HomeViewModel.UiState.UiStateReady(todoList = listOf(note2)))
+    }
+
+    @Test
+    fun `loadMore triggers repository call and updates uiState`() = runTest {
+        // given
+        val mockNotes = listOf(
+            Note(
+                id = 1L,
+                title = "Note 1",
+                content = "This is content for note 1",
+                createdDate = Date(),
+                updatedDate = Date()
+            ),
+            Note(
+                id = 2L,
+                title = "Note 2",
+                content = "This is content for note 2",
+                createdDate = Date(),
+                updatedDate = Date()
+            )
+        )
+        coEvery { noteRepository.getListDataOffset(20, any()) } returns mockNotes
+
+        viewModel._originalData.clear()
+
+        // when
+        viewModel.loadMore()
+
+        // then
+        coVerify { noteRepository.getListDataOffset(20, any()) }
+
+        Truth.assertThat(viewModel.uiState.value).isEqualTo(HomeViewModel.UiState.UiStateReady(todoList = mockNotes))
+    }
+
+    @Test
+    fun `addTodo adds new note and updates uiState2`() = runTest {
+        // given
+        val title = "New Note"
+        val description = "Note description"
+        val currentDate = Date() // Ensure both newNote and the repository note use the same date
+        val newNote = Note(
+            title = title,
+            content = description,
+            createdDate = currentDate,
+            updatedDate = currentDate
+        )
+        coEvery { noteRepository.insert(any()) } returns 100L
+
+        // Set up existing data in _originalData
+        val note1 = Note(
+            id = 1L,
+            title = "Note 1",
+            content = "This is content for note 1",
+            createdDate = Date(),
+            updatedDate = Date()
+        )
+        viewModel._originalData.clear()
+        viewModel._originalData.add(note1)
+
+        // when
+        viewModel.addTodo(title, description)
+
+        // then
+        coVerify { noteRepository.insert(any()) }
+
+        val actualTodoList = (viewModel.uiState.value as HomeViewModel.UiState.UiStateReady).todoList
+
+        val expectedTodoList = mutableListOf<Note>().apply {
+            add(newNote.copy(id = 100L))
+            add(note1)
+        }.toList()
+
+        // Check if uiState has the correct updated list by comparing properties
+        Truth.assertThat(actualTodoList.size).isEqualTo(expectedTodoList.size)
+
+        expectedTodoList.forEachIndexed { index, expectedNote ->
+            val actualNote = actualTodoList[index]
+            Truth.assertThat(actualNote.id).isEqualTo(expectedNote.id)
+            Truth.assertThat(actualNote.title).isEqualTo(expectedNote.title)
+            Truth.assertThat(actualNote.content).isEqualTo(expectedNote.content)
+        }
     }
 }
 
