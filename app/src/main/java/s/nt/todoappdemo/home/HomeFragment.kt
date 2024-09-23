@@ -5,6 +5,7 @@ package s.nt.todoappdemo.home
 import android.app.AlertDialog
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -111,7 +112,8 @@ class HomeFragment : Fragment() {
                 val totalItemCount = layoutManager.itemCount
                 val pastVisibleItems = layoutManager.findFirstVisibleItemPosition()
 
-                if ((visibleItemCount + pastVisibleItems) >= totalItemCount) {
+                if ( (visibleItemCount + pastVisibleItems) >= totalItemCount) {
+                    Log.d("",">>>recyclerview trigger load more")
                     viewModel.loadMore()
                 }
             }

@@ -23,6 +23,7 @@ import org.junit.Test
 import s.nt.todoappdemo.home.data.NoteRepository
 import s.nt.todoappdemo.home.data.local.Note
 import java.util.Date
+import java.util.TreeSet
 
 class HomeViewModelTest {
     @get:Rule
@@ -66,18 +67,19 @@ class HomeViewModelTest {
     @Test
     fun `deleteNote calls repository to delete note and removes from uiState`() = runTest {
         // given
+        val sysTime = System.currentTimeMillis()
         val note1 = Note(
             id = 1L,
             title = "Note 1",
             content = "This is content for note 1",
-            createdDate = Date(),
+            createdDate = Date(sysTime),
             updatedDate = Date()
         )
         val note2 = Note(
             id = 2L,
             title = "Note 2",
             content = "This is content for note 2",
-            createdDate = Date(),
+            createdDate = Date(sysTime - 1000L),
             updatedDate = Date()
         )
 
@@ -100,23 +102,27 @@ class HomeViewModelTest {
     @Test
     fun `loadMore triggers repository call and updates uiState`() = runTest {
         // given
-        val mockNotes = listOf(
-            Note(
-                id = 1L,
-                title = "Note 1",
-                content = "This is content for note 1",
-                createdDate = Date(),
-                updatedDate = Date()
-            ),
-            Note(
-                id = 2L,
-                title = "Note 2",
-                content = "This is content for note 2",
-                createdDate = Date(),
-                updatedDate = Date()
-            )
+        val sysTime = System.currentTimeMillis()
+        val note1 =  Note(
+            id = 1L,
+            title = "Note 1",
+            content = "This is content for note 1",
+            createdDate = Date(sysTime),
+            updatedDate = Date()
         )
-        coEvery { noteRepository.getListDataOffset(20, any()) } returns mockNotes
+        val note2 = Note(
+            id = 2L,
+            title = "Note 2",
+            content = "This is content for note 2",
+            createdDate = Date(sysTime -1000L),
+            updatedDate = Date()
+        )
+        val mocks = TreeSet<Note>(compareByDescending { it.createdDate }).apply {
+            add(note1)
+            add(note2)
+        }
+
+        coEvery { noteRepository.getListDataOffset(20, any()) } returns mocks.toList()
 
         viewModel._originalData.clear()
 
@@ -126,7 +132,7 @@ class HomeViewModelTest {
         // then
         coVerify { noteRepository.getListDataOffset(20, any()) }
 
-        Truth.assertThat(viewModel.uiState.value).isEqualTo(HomeViewModel.UiState.UiStateReady(todoList = mockNotes))
+        Truth.assertThat(viewModel.uiState.value).isEqualTo(HomeViewModel.UiState.UiStateReady(todoList = mocks.toList()))
     }
 
     @Test
@@ -135,10 +141,11 @@ class HomeViewModelTest {
         val title = "New Note"
         val description = "Note description"
         val currentDate = Date() // Ensure both newNote and the repository note use the same date
+        val sysTime = System.currentTimeMillis()
         val newNote = Note(
             title = title,
             content = description,
-            createdDate = currentDate,
+            createdDate = Date(sysTime),
             updatedDate = currentDate
         )
         coEvery { noteRepository.insert(any()) } returns 100L
@@ -148,7 +155,7 @@ class HomeViewModelTest {
             id = 1L,
             title = "Note 1",
             content = "This is content for note 1",
-            createdDate = Date(),
+            createdDate = Date(sysTime - 1000L),
             updatedDate = Date()
         )
         viewModel._originalData.clear()

@@ -8,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -16,6 +17,7 @@ import s.nt.todoappdemo.home.data.NoteRepository
 import s.nt.todoappdemo.home.data.local.Note
 import java.util.Calendar
 import java.util.Date
+import java.util.TreeSet
 
 
 @ExperimentalCoroutinesApi
@@ -25,7 +27,7 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
     private val _loadMore = MutableSharedFlow<Unit>()
 
     @VisibleForTesting
-    val _originalData = mutableListOf<Note>()
+    val _originalData = TreeSet<Note>(compareByDescending { it.createdDate })
 
     private var offset = 0
     private var isLoadMore = false
@@ -45,7 +47,6 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
                     val uiState = UiState.UiStateReady(todoList = _originalData.toList())
                     _uiState.value = uiState
                     if (isLoadMore) {
-
                         offset += appendedList.size
                         isLoadMore = false
                     }
@@ -54,7 +55,7 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
                         emit(uiState)
                     }
                 }.flowOn(Dispatchers.IO)
-                    .collect { uiState ->
+                    .collectLatest { uiState ->
                         _uiState.value = uiState
                     }
 
@@ -114,6 +115,7 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
             _originalData.clear()
             val uiState = UiState.UiStateReady(todoList = _originalData.toList())
             _uiState.value = uiState
+            isLoadMore = false
         }
     }
 
@@ -130,7 +132,7 @@ class HomeViewModel(private val noteRepository: NoteRepository) : ViewModel() {
     private fun insertNote(note: Note) {
         viewModelScope.launch {
             val id = noteRepository.insert(note)
-            _originalData.add(0, note.copy(id = id))
+            _originalData.add(note.copy(id = id))
             val uiState = UiState.UiStateReady(todoList = _originalData.toList())
             _uiState.value = uiState
         }
